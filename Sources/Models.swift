@@ -26,7 +26,7 @@ struct ErrQ: Codable, Identifiable {
     enum CodingKeys: String, CodingKey { case s, i, t, k, x, tr, l }
 }
 
-struct Tense: Codable, Identifiable {
+struct Tense: Codable, Identifiable, Hashable {
     let id: String
     let n: String
     let ru: String

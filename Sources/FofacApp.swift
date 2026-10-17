@@ -9,12 +9,53 @@ struct FofacApp: App {
 
 struct RootView: View {
     @StateObject private var store = Store()
+    @StateObject private var app = AppState()
+    @AppStorage("scheme") private var scheme = 0
+    @AppStorage("accent") private var accent = 0
+
+    private var accentColor: Color {
+        let all: [Color] = [.blue, Color(red: 0.88, green: 0.27, blue: 0.48), .green, .purple]
+        return all[min(max(accent, 0), all.count - 1)]
+    }
+
     var body: some View {
-        TabView {
-            GameHome().tabItem { Label("Игра", systemImage: "gamecontroller") }
-            CardsView().tabItem { Label("Карточки", systemImage: "rectangle.stack") }
-            TensesView().tabItem { Label("Времена", systemImage: "clock") }
+        ZStack(alignment: .leading) {
+            TabView(selection: $app.tab) {
+                GameHome().tabItem { Label("Игра", systemImage: "gamecontroller") }.tag(0)
+                CardsView().tabItem { Label("Карточки", systemImage: "rectangle.stack") }.tag(1)
+                TensesView().tabItem { Label("Времена", systemImage: "clock") }.tag(2)
+            }
+
+            // Узкая полоса у левого края: свайп вправо открывает панель
+            if app.tensePath.isEmpty && !app.drawer {
+                HStack(spacing: 0) {
+                    Color.clear
+                        .frame(width: 22)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 10).onChanged { v in
+                                if v.translation.width > 28 && !app.drawer { app.open() }
+                            }
+                        )
+                    Spacer(minLength: 0).allowsHitTesting(false)
+                }
+            }
+
+            if app.drawer {
+                Color.black.opacity(0.35)
+                    .ignoresSafeArea()
+                    .onTapGesture { app.close() }
+                    .gesture(DragGesture().onEnded { v in if v.translation.width < -50 { app.close() } })
+                    .transition(.opacity)
+                DrawerView()
+                    .transition(.move(edge: .leading))
+                    .gesture(DragGesture().onEnded { v in if v.translation.width < -50 { app.close() } })
+            }
         }
         .environmentObject(store)
+        .environmentObject(app)
+        .preferredColorScheme(scheme == 1 ? .light : (scheme == 2 ? .dark : nil))
+        .accentColor(accentColor)
+        .sheet(isPresented: $app.settings) { SettingsView() }
     }
 }

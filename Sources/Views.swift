@@ -49,6 +49,7 @@ struct WordFlow: View {
     let text: String
     var size: CGFloat = 24
     @Binding var tip: String?
+    @AppStorage("voiceOn") private var voiceOn = true
 
     var body: some View {
         FlowLayout(spacing: 6) {
@@ -63,8 +64,12 @@ struct WordFlow: View {
     private func show(_ w: String) {
         let clean = String(w.filter { $0.isLetter || $0 == "'" })
         if clean.isEmpty { return }
-        let tr = lookupWord(clean) ?? "нет в словаре"
-        tip = clean + " — " + tr
+        var line = clean + " — " + (lookupWord(clean) ?? "нет в словаре")
+        if let v = findIrregular(clean) {
+            line += "\n" + v.base + " · " + v.past + " · " + v.pp
+        }
+        tip = line
+        if voiceOn { Speaker.shared.say(clean) }
         let mine = tip
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
             if tip == mine { tip = nil }
@@ -82,7 +87,8 @@ struct TipBubble: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(Color.black.opacity(0.85))
-                .clipShape(Capsule())
+                .multilineTextAlignment(.center)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .padding(.top, 6)
         }
     }
@@ -141,6 +147,7 @@ struct GameHome: View {
                 .padding()
             }
             .navigationTitle("fofac")
+            .toolbar { ToolbarItem(placement: .navigationBarLeading) { DrawerButton() } }
             .fullScreenCover(isPresented: $playing) {
                 QuizView(mode: mode, qs: qs, es: es, onClose: { playing = false })
             }
@@ -173,6 +180,7 @@ struct QuizView: View {
     @State private var picked: Int? = nil
     @State private var finished = false
     @State private var tip: String? = nil
+    @AppStorage("voiceOn") private var voiceOn = true
 
     private var count: Int { mode == 0 ? qs.count : es.count }
     private var isLast: Bool { lives == 0 || idx == count - 1 }
@@ -228,7 +236,11 @@ struct QuizView: View {
     private var mcBody: some View {
         let q = qs[idx]
         return VStack(alignment: .leading, spacing: 12) {
-            tag((q.gen ? "Выбери форму · " : "") + q.t)
+            HStack {
+                tag((q.gen ? "Выбери форму · " : "") + q.t)
+                Spacer()
+                SpeakButton(text: q.s.replacingOccurrences(of: "___", with: picked != nil ? q.o[q.c] : "blank"))
+            }
             WordFlow(text: q.s.replacingOccurrences(of: "___", with: "_____"), tip: $tip)
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -256,6 +268,7 @@ struct QuizView: View {
 
     private func answerMC(_ k: Int, _ q: Quest) {
         picked = k
+        if voiceOn { Speaker.shared.say(q.s.replacingOccurrences(of: "___", with: q.o[q.c])) }
         if k == q.c {
             streak += 1
             score += 10 + min(streak - 1, 5) * 2
@@ -291,7 +304,11 @@ struct QuizView: View {
         let q = es[idx]
         let words = q.s.split(separator: " ").map { String($0) }
         return VStack(alignment: .leading, spacing: 12) {
-            tag(q.t)
+            HStack {
+                tag(q.t)
+                Spacer()
+                SpeakButton(text: picked != nil ? q.k : q.s)
+            }
             Text("Найди ошибку в предложении. Нажми на неправильное слово:")
                 .font(.subheadline).foregroundColor(.secondary)
             FlowLayout(spacing: 6) {
@@ -319,6 +336,7 @@ struct QuizView: View {
 
     private func answerErr(_ k: Int, _ q: ErrQ) {
         picked = k
+        if voiceOn { Speaker.shared.say(q.k) }
         if k == q.i {
             streak += 1
             score += 10 + min(streak - 1, 5) * 2
@@ -387,13 +405,14 @@ struct QuizView: View {
 // MARK: - Времена
 
 struct TensesView: View {
+    @EnvironmentObject var app: AppState
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $app.tensePath) {
             List {
                 ForEach(DB.data.tenses) { g in
                     Section(header: Text("\(g.g) — \(g.sub)")) {
                         ForEach(g.items) { t in
-                            NavigationLink(destination: TenseDetail(t: t)) {
+                            NavigationLink(value: t) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(t.n).font(.headline)
                                     Text(t.ru).font(.caption).foregroundColor(.secondary)
@@ -404,6 +423,8 @@ struct TensesView: View {
                 }
             }
             .navigationTitle("Времена")
+            .toolbar { ToolbarItem(placement: .navigationBarLeading) { DrawerButton() } }
+            .navigationDestination(for: Tense.self) { TenseDetail(t: $0) }
         }
     }
 }
@@ -432,7 +453,11 @@ struct TenseDetail: View {
                 head("Примеры (нажми на слово — увидишь перевод)")
                 ForEach(Array(t.ex.enumerated()), id: \.offset) { _, e in
                     VStack(alignment: .leading, spacing: 2) {
-                        WordFlow(text: e[0], size: 18, tip: $tip)
+                        HStack(alignment: .top) {
+                            WordFlow(text: e[0], size: 18, tip: $tip)
+                            Spacer(minLength: 8)
+                            SpeakButton(text: e[0])
+                        }
                         Text(e.count > 1 ? e[1] : "").font(.subheadline).foregroundColor(.secondary)
                     }
                 }
@@ -497,6 +522,7 @@ struct CardsView: View {
                 }
             }
             .navigationTitle("Карточки")
+            .toolbar { ToolbarItem(placement: .navigationBarLeading) { DrawerButton() } }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { adding = true } label: { Image(systemName: "plus") }
@@ -523,6 +549,12 @@ struct AddCardView: View {
                 TextField("Лицевая сторона (вопрос)", text: $front, axis: .vertical)
                 TextField("Ответ", text: $back, axis: .vertical)
                 TextField("Заметка (необязательно)", text: $note, axis: .vertical)
+                if let v = findIrregularIn(front) ?? findIrregularIn(back) {
+                    Section("Неправильный глагол") {
+                        Text(v.base + " — " + v.past + " — " + v.pp).font(.headline)
+                        Text(v.ru).foregroundColor(.secondary)
+                    }
+                }
             }
             .navigationTitle("Новая карточка")
             .navigationBarTitleDisplayMode(.inline)
@@ -567,10 +599,16 @@ struct ReviewView: View {
         return VStack(spacing: 16) {
             Text("Новых \(nNew) · повторов \(nRep)").font(.footnote).foregroundColor(.secondary)
             VStack(spacing: 18) {
-                Text(x.f).font(.system(size: 30, weight: .semibold, design: .serif)).multilineTextAlignment(.center)
+                HStack(spacing: 10) {
+                    Text(x.f).font(.system(size: 30, weight: .semibold, design: .serif)).multilineTextAlignment(.center)
+                    if hasLatin(x.f) { SpeakButton(text: x.f) }
+                }
                 if vm.back {
                     Divider()
-                    Text(x.b).font(.title2.weight(.semibold)).foregroundColor(.accentColor).multilineTextAlignment(.center)
+                    HStack(spacing: 10) {
+                        Text(x.b).font(.title2.weight(.semibold)).foregroundColor(.accentColor).multilineTextAlignment(.center)
+                        if hasLatin(x.b) { SpeakButton(text: x.b) }
+                    }
                     if !x.t.isEmpty { Text(x.t).font(.subheadline).foregroundColor(.secondary) }
                 } else {
                     Text("Нажми на карточку, чтобы увидеть ответ").font(.footnote).foregroundColor(.secondary)
