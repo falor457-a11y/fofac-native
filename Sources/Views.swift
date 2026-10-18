@@ -495,6 +495,7 @@ struct TenseDetail: View {
 
 struct CardsView: View {
     @EnvironmentObject var store: Store
+    @StateObject private var clock = Clock()
     @State private var adding = false
     @State private var reviewing = false
 
@@ -502,7 +503,7 @@ struct CardsView: View {
         NavigationStack {
             List {
                 Section {
-                    let s = store.stats
+                    let s = store.statsAt(clock.now)
                     Text("Всего: \(s.total) · к повторению: \(s.due) · новых сегодня: \(s.fresh) · выучено: \(s.learned)")
                         .font(.footnote).foregroundColor(.secondary)
                     Button("Учить") { reviewing = true }
@@ -514,7 +515,7 @@ struct CardsView: View {
                             Text(c.f)
                             Text(c.b).font(.caption).foregroundColor(.secondary)
                             if let st = c.st {
-                                Text(whenText(st.due)).font(.caption2).foregroundColor(.secondary)
+                                Text(whenText(st.due, now: clock.now)).font(.caption2).foregroundColor(.secondary)
                             }
                         }
                     }
@@ -574,6 +575,8 @@ struct AddCardView: View {
 
 struct ReviewView: View {
     @StateObject private var vm: ReviewVM
+    @StateObject private var clock = Clock()
+    @State private var playing3 = false
     let onClose: () -> Void
 
     init(store: Store, onClose: @escaping () -> Void) {
@@ -590,6 +593,9 @@ struct ReviewView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Назад") { onClose() } }
             }
             .navigationBarTitleDisplayMode(.inline)
+        }
+        .fullScreenCover(isPresented: $playing3) {
+            Match3Cover(store: vm.store, onClose: { playing3 = false })
         }
     }
 
@@ -643,17 +649,22 @@ struct ReviewView: View {
     }
 
     private var endView: some View {
-        let st = vm.store.stats
-        let nxt = vm.store.cards.compactMap { $0.st }.filter { $0.due > Date() }.map { $0.due }.sorted().first
+        let st = vm.store.statsAt(clock.now)
+        let nxt = vm.store.cards.compactMap { $0.st }.filter { $0.due > clock.now }.map { $0.due }.sorted().first
         return VStack(spacing: 12) {
             Spacer()
             Text(st.due > 0 ? "Пора повторять" : (vm.reviewed > 0 ? "На сегодня всё!" : "Пока нечего повторять"))
                 .font(.system(size: 28, weight: .bold, design: .serif))
             Text("Повторено карточек: \(vm.reviewed)").foregroundColor(.secondary)
-            if let n = nxt { Text("Следующее повторение: " + whenText(n)).foregroundColor(.secondary) }
+            if let n = nxt { Text("Следующее повторение: " + whenText(n, now: clock.now)).foregroundColor(.secondary) }
             if st.due > 0 {
                 Button { vm.start() } label: { Text("Учить (\(st.due))").frame(maxWidth: .infinity) }
                     .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+            }
+            if vm.store.moves > 0 {
+                Button { playing3 = true } label: { Text("Три в ряд · ходов: \(vm.store.moves)").frame(maxWidth: .infinity) }
+                    .buttonStyle(.bordered)
                     .controlSize(.large)
             }
             Spacer()

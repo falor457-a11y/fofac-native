@@ -20,10 +20,13 @@ struct RootView: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            TabView(selection: $app.tab) {
-                GameHome().tabItem { Label("Игра", systemImage: "gamecontroller") }.tag(0)
-                CardsView().tabItem { Label("Карточки", systemImage: "rectangle.stack") }.tag(1)
-                TensesView().tabItem { Label("Времена", systemImage: "clock") }.tag(2)
+            Group {
+                switch app.tab {
+                case 0: GameHome()
+                case 2: TensesView()
+                case 3: Match3Screen()
+                default: CardsView()
+                }
             }
 
             // Узкая полоса у левого края: свайп вправо открывает панель

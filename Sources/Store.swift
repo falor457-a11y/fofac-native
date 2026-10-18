@@ -70,8 +70,7 @@ func fmtInterval(_ s: SRSState?, _ r: Int) -> String {
     return String(format: "%.1f г.", Double(d) / 365)
 }
 
-func whenText(_ d: Date) -> String {
-    let now = Date()
+func whenText(_ d: Date, now: Date = Date()) -> String {
     if d <= now { return "сейчас" }
     let startToday = Calendar.current.startOfDay(for: now)
     let startTomorrow = startToday.addingTimeInterval(86400)
@@ -99,6 +98,9 @@ final class Store: ObservableObject {
         }
     }
     @Published var best: Int = 0
+    @Published var moves: Int = 0
+    var earnedToday: Int = 0
+    let moveCap = 30
     var newToday: Int = 0
     var dayKey: String = ""
     let limit = 20
@@ -112,6 +114,8 @@ final class Store: ObservableObject {
         best = d.integer(forKey: "fofac.best")
         dayKey = d.string(forKey: "fofac.day") ?? ""
         newToday = d.integer(forKey: "fofac.n")
+        earnedToday = d.integer(forKey: "fofac.earned")
+        moves = d.integer(forKey: "fofac.moves")
         rollDay()
         planNotifications()
     }
@@ -127,6 +131,7 @@ final class Store: ObservableObject {
         if dayKey != k {
             dayKey = k
             newToday = 0
+            earnedToday = 0
             saveDay()
         }
     }
@@ -134,9 +139,29 @@ final class Store: ObservableObject {
     func saveDay() {
         d.set(dayKey, forKey: "fofac.day")
         d.set(newToday, forKey: "fofac.n")
+        d.set(earnedToday, forKey: "fofac.earned")
     }
 
     func saveBest() { d.set(best, forKey: "fofac.best") }
+
+    /// Ход для игры «три в ряд» за правильный ответ (не больше 30 в день)
+    @discardableResult
+    func earnMove() -> Bool {
+        rollDay()
+        if earnedToday >= moveCap { return false }
+        earnedToday += 1
+        moves += 1
+        d.set(moves, forKey: "fofac.moves")
+        saveDay()
+        return true
+    }
+
+    func useMove() {
+        if moves > 0 {
+            moves -= 1
+            d.set(moves, forKey: "fofac.moves")
+        }
+    }
 
     private func saveCards() {
         if let data = try? JSONEncoder().encode(cards) {
@@ -144,9 +169,10 @@ final class Store: ObservableObject {
         }
     }
 
-    var stats: (due: Int, fresh: Int, total: Int, learned: Int) {
+    var stats: (due: Int, fresh: Int, total: Int, learned: Int) { return statsAt(Date()) }
+
+    func statsAt(_ now: Date) -> (due: Int, fresh: Int, total: Int, learned: Int) {
         rollDay()
-        let now = Date()
         var due = 0
         var nw = 0
         var learned = 0
@@ -232,6 +258,7 @@ final class ReviewVM: ObservableObject {
             store.cards[i] = x
         }
         reviewed += 1
+        if r > 0 { store.earnMove() }
         if r == 0 { queue.insert(x, at: min(3, queue.count)) }
         back = false
     }

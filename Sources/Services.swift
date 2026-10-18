@@ -80,11 +80,26 @@ func findIrregularIn(_ text: String) -> IrrVerb? {
 // MARK: - Состояние приложения и боковая панель
 
 final class AppState: ObservableObject {
-    @Published var tab = 0
+    @Published var tab = 1
     @Published var drawer = false
     @Published var settings = false
     @Published var tensePath: [Tense] = []
 
     func open() { withAnimation(.easeOut(duration: 0.25)) { drawer = true } }
     func close() { withAnimation(.easeOut(duration: 0.25)) { drawer = false } }
+}
+
+// MARK: - Часы: обновляют экран каждую секунду, пока он открыт
+
+final class Clock: ObservableObject {
+    @Published var now = Date()
+    private var timer: Timer?
+
+    init() {
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.now = Date()
+        }
+    }
+
+    deinit { timer?.invalidate() }
 }
