@@ -24,7 +24,7 @@ struct RootView: View {
                 switch app.tab {
                 case 0: GameHome()
                 case 2: TensesView()
-                case 3: Match3Screen()
+                case 3: SpaceScreen()
                 default: CardsView()
                 }
             }

@@ -25,7 +25,7 @@ struct DrawerView: View {
 
             item("Карточки", "rectangle.stack", tab: 1)
             item("Игра", "gamecontroller", tab: 0)
-            item("Три в ряд", "square.grid.3x3.fill", tab: 3)
+            item("Космос", "moon.stars.fill", tab: 3)
 
             Button { withAnimation { openTenses.toggle() } } label: {
                 row("Времена", "clock", active: app.tab == 2, chevron: openTenses ? "chevron.down" : "chevron.right")

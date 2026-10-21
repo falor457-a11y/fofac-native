@@ -258,7 +258,6 @@ final class ReviewVM: ObservableObject {
             store.cards[i] = x
         }
         reviewed += 1
-        if r > 0 { store.earnMove() }
         if r == 0 { queue.insert(x, at: min(3, queue.count)) }
         back = false
     }

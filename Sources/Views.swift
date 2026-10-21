@@ -595,7 +595,7 @@ struct ReviewView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .fullScreenCover(isPresented: $playing3) {
-            Match3Cover(store: vm.store, onClose: { playing3 = false })
+            SpaceCover(store: vm.store, onClose: { playing3 = false })
         }
     }
 
@@ -662,8 +662,8 @@ struct ReviewView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
             }
-            if vm.store.moves > 0 {
-                Button { playing3 = true } label: { Text("Три в ряд · ходов: \(vm.store.moves)").frame(maxWidth: .infinity) }
+            if vm.store.cards.count >= 4 {
+                Button { playing3 = true } label: { Text("Играть словами").frame(maxWidth: .infinity) }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
             }
